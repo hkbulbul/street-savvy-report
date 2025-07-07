@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThumbsUp, MessageSquare, Flag, MapPin } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,13 @@ interface Post {
   user_upvoted?: boolean;
 }
 
+interface Comment {
+  id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
+}
+
 interface PostCardProps {
   post: Post;
   onUpvoteChange?: () => void;
@@ -31,8 +38,10 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
   const [commentCount, setCommentCount] = useState(post.comment_count || 0);
   const [hasUpvoted, setHasUpvoted] = useState(post.user_upvoted || false);
   const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [commentAuthor, setCommentAuthor] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
   const { toast } = useToast();
 
   const getUserSession = () => {
@@ -42,6 +51,36 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
       localStorage.setItem('user_session', session);
     }
     return session;
+  };
+
+  // Fetch comments when showComments becomes true
+  useEffect(() => {
+    if (showComments && comments.length === 0) {
+      fetchComments();
+    }
+  }, [showComments]);
+
+  const fetchComments = async () => {
+    setLoadingComments(true);
+    try {
+      const { data, error } = await supabase
+        .from('post_comments')
+        .select('*')
+        .eq('post_id', post.id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setComments(data || []);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load comments",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingComments(false);
+    }
   };
 
   const handleUpvote = async () => {
@@ -79,26 +118,42 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
   };
 
   const handleComment = async () => {
-    if (!newComment.trim() || !commentAuthor.trim()) return;
+    if (!newComment.trim() || !commentAuthor.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please enter both your name and comment",
+        variant: "destructive",
+      });
+      return;
+    }
     
     try {
-      await supabase
+      const { data, error } = await supabase
         .from('post_comments')
         .insert({
           post_id: post.id,
           author_name: commentAuthor,
           content: newComment
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      // Add the new comment to the local state
+      if (data) {
+        setComments(prev => [...prev, data]);
+        setCommentCount(prev => prev + 1);
+        setNewComment('');
+        setCommentAuthor('');
+        
+        toast({
+          title: "Success",
+          description: "Comment added successfully",
         });
-      
-      setCommentCount(prev => prev + 1);
-      setNewComment('');
-      setCommentAuthor('');
-      
-      toast({
-        title: "Success",
-        description: "Comment added successfully",
-      });
+      }
     } catch (error) {
+      console.error('Error adding comment:', error);
       toast({
         title: "Error",
         description: "Failed to add comment",
@@ -133,6 +188,10 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
         variant: "destructive",
       });
     }
+  };
+
+  const toggleComments = () => {
+    setShowComments(!showComments);
   };
 
   const timeAgo = (dateString: string) => {
@@ -191,7 +250,7 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
 
         <div className="flex items-center text-sm text-muted-foreground mb-4">
           <MapPin className="w-4 h-4 mr-1" />
-          {post.city}, {post.state}, India
+          {post.city}, {post.state}
         </div>
 
         <div className="flex items-center justify-between pt-4 border-t">
@@ -209,7 +268,7 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowComments(!showComments)}
+              onClick={toggleComments}
             >
               <MessageSquare className="w-4 h-4 mr-1" />
               {commentCount}
@@ -223,23 +282,56 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
 
         {showComments && (
           <div className="mt-4 pt-4 border-t">
-            <div className="space-y-3 mb-4">
+            {/* Existing Comments */}
+            {loadingComments ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+                <p className="text-sm text-muted-foreground mt-2">Loading comments...</p>
+              </div>
+            ) : (
+              <div className="space-y-4 mb-4">
+                {comments.length > 0 ? (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="bg-muted/50 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-sm">{comment.author_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {timeAgo(comment.created_at)}
+                        </span>
+                      </div>
+                      <p className="text-sm">{comment.content}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No comments yet. Be the first to comment!
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Add Comment Form */}
+            <div className="space-y-3">
               <input
                 type="text"
                 placeholder="Your name"
                 value={commentAuthor}
                 onChange={(e) => setCommentAuthor(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
               <textarea
                 placeholder="Add a comment..."
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md resize-none"
+                className="w-full px-3 py-2 border rounded-md resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 rows={3}
               />
-              <Button onClick={handleComment} size="sm">
-                Comment
+              <Button 
+                onClick={handleComment} 
+                size="sm"
+                disabled={!newComment.trim() || !commentAuthor.trim()}
+              >
+                Add Comment
               </Button>
             </div>
           </div>
