@@ -107,7 +107,8 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
         setHasUpvoted(true);
       }
       
-      onUpvoteChange?.();
+      // Don't call onUpvoteChange to avoid page refresh
+      // onUpvoteChange?.();
     } catch (error) {
       toast({
         title: "Error",

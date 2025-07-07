@@ -129,10 +129,10 @@ const Index = () => {
     setSearchQuery(query);
   }, []);
 
-  const handleUpvoteChange = useCallback(() => {
-    // Refetch posts when upvote changes
-    fetchPosts();
-  }, [fetchPosts]);
+  // Remove the handleUpvoteChange function since we don't need to refresh the page
+  // const handleUpvoteChange = useCallback(() => {
+  //   fetchPosts();
+  // }, [fetchPosts]);
 
   if (loading) {
     return (
@@ -188,7 +188,8 @@ const Index = () => {
                   <PostCard 
                     key={post.id} 
                     post={post} 
-                    onUpvoteChange={handleUpvoteChange}
+                    // Remove onUpvoteChange prop to prevent page refresh
+                    // onUpvoteChange={handleUpvoteChange}
                   />
                 ))}
               </div>
