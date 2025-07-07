@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { ThumbsUp, MessageSquare, Flag, MapPin, Eye } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { ThumbsUp, MessageSquare, Flag, MapPin, Eye, Calendar, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface Post {
   id: string;
@@ -33,9 +35,11 @@ interface PostCardProps {
   post: Post;
   onUpvoteChange?: () => void;
   showFullContent?: boolean;
+  layout?: 'list' | 'grid';
+  showCommentsOnly?: boolean;
 }
 
-const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardProps) => {
+const PostCard = ({ post, onUpvoteChange, showFullContent = false, layout = 'list', showCommentsOnly = false }: PostCardProps) => {
   const [upvoteCount, setUpvoteCount] = useState(post.upvote_count || 0);
   const [commentCount, setCommentCount] = useState(post.comment_count || 0);
   const [hasUpvoted, setHasUpvoted] = useState(post.user_upvoted || false);
@@ -216,47 +220,246 @@ const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardPro
     return `${Math.floor(diffInHours / 24)}d ago`;
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', { 
+      day: 'numeric', 
+      month: 'short',
+      year: 'numeric'
+    }).format(date);
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
       case 'high': return 'destructive';
-      case 'medium': return 'default';
-      case 'low': return 'secondary';
+      case 'medium': return 'amber';
+      case 'low': return 'green';
       default: return 'default';
     }
   };
 
+  const getSeverityIcon = (severity: string) => {
+    switch (severity.toLowerCase()) {
+      case 'high': return <AlertCircle className="h-3.5 w-3.5 mr-1" />;
+      case 'medium': return <AlertCircle className="h-3.5 w-3.5 mr-1" />;
+      case 'low': return <AlertCircle className="h-3.5 w-3.5 mr-1" />;
+      default: return null;
+    }
+  };
+
   const truncateText = (text: string, maxLength: number) => {
+    if (!text) return '';
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
   };
 
+  // If we're only showing comments, render just the comments section
+  if (showCommentsOnly) {
+    return (
+      <div className="space-y-6">
+        {/* Existing Comments */}
+        {loadingComments ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-sm text-muted-foreground mt-3">Loading comments...</p>
+          </div>
+        ) : (
+          <div className="space-y-4 mb-6">
+            {comments.length > 0 ? (
+              comments.map((comment) => (
+                <div key={comment.id} className="bg-muted/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                          {comment.author_name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium text-sm">{comment.author_name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {timeAgo(comment.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm">{comment.content}</p>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground text-center py-8 bg-muted/30 rounded-lg">
+                <MessageSquare className="h-5 w-5 mx-auto mb-2 text-muted-foreground/70" />
+                <p>No comments yet. Be the first to comment!</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Add Comment Form */}
+        <div className="space-y-3 bg-muted/20 p-4 rounded-lg">
+          <h4 className="font-medium text-sm">Add a comment</h4>
+          <input
+            type="text"
+            placeholder="Your name"
+            value={commentAuthor}
+            onChange={(e) => setCommentAuthor(e.target.value)}
+            className="w-full px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          />
+          <textarea
+            placeholder="Share your thoughts..."
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            className="w-full px-3 py-2 bg-background border rounded-md resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            rows={3}
+          />
+          <Button 
+            onClick={handleComment} 
+            disabled={!newComment.trim() || !commentAuthor.trim()}
+            className="w-full"
+          >
+            Add Comment
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (layout === 'grid' && !showFullContent) {
+    return (
+      <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-300 border">
+        <div className="relative">
+          {post.photo_url ? (
+            <div className="aspect-video w-full">
+              <img 
+                src={post.photo_url} 
+                alt="Road issue" 
+                className="w-full h-full object-cover"
+                onClick={handleViewPost}
+                style={{ cursor: 'pointer' }}
+              />
+            </div>
+          ) : (
+            <div className="aspect-video w-full bg-muted/50 flex items-center justify-center" onClick={handleViewPost} style={{ cursor: 'pointer' }}>
+              <div className="text-muted-foreground">No image</div>
+            </div>
+          )}
+          <Badge 
+            className={`absolute top-2 right-2 flex items-center ${
+              post.severity === 'high' 
+                ? 'bg-destructive hover:bg-destructive/80' 
+                : post.severity === 'medium' 
+                  ? 'bg-amber-500 hover:bg-amber-500/80'
+                  : 'bg-green-500 hover:bg-green-500/80'
+            }`}
+          >
+            {getSeverityIcon(post.severity)}
+            {post.severity.toUpperCase()}
+          </Badge>
+        </div>
+        
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <Avatar className="h-6 w-6">
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                {post.name.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium">{post.name}</span>
+            <span className="text-xs text-muted-foreground">• {timeAgo(post.created_at)}</span>
+          </div>
+          
+          <h3 className="font-semibold mb-2 hover:text-primary cursor-pointer" onClick={handleViewPost}>
+            {truncateText(post.title, 65)}
+          </h3>
+          
+          <p className="text-sm text-muted-foreground mb-3">
+            {truncateText(post.description || '', 100)}
+          </p>
+          
+          <div className="flex items-center text-xs text-muted-foreground">
+            <MapPin className="w-3.5 h-3.5 mr-1" />
+            {post.city}, {post.state}
+          </div>
+        </CardContent>
+        
+        <CardFooter className="px-4 py-3 border-t bg-muted/20 flex justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleUpvote}
+              className={`flex items-center text-xs font-medium ${hasUpvoted ? 'text-primary' : 'text-muted-foreground'}`}
+            >
+              <ThumbsUp className="w-3.5 h-3.5 mr-1" />
+              {upvoteCount}
+            </button>
+            
+            <button
+              onClick={handleViewPost}
+              className="flex items-center text-xs font-medium text-muted-foreground"
+            >
+              <MessageSquare className="w-3.5 h-3.5 mr-1" />
+              {commentCount}
+            </button>
+          </div>
+          
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8"
+            onClick={handleReport}
+          >
+            <Flag className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="mb-6">
+    <Card className={`${showFullContent ? 'border-0 shadow-lg' : 'mb-6 hover:shadow-md transition-shadow duration-200'}`}>
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-primary-foreground font-semibold">
+            <Avatar className="h-10 w-10">
+              <AvatarFallback className="bg-primary text-primary-foreground">
                 {post.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
+              </AvatarFallback>
+            </Avatar>
             <div>
               <div className="font-medium">{post.name}</div>
-              <div className="text-sm text-muted-foreground">
-                {timeAgo(post.created_at)} • {post.city}
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                {formatDate(post.created_at)}
               </div>
             </div>
           </div>
-          <Badge variant={getSeverityColor(post.severity) as "default" | "secondary" | "destructive"}>
+          <Badge 
+            className={`flex items-center ${
+              post.severity === 'high' 
+                ? 'bg-destructive hover:bg-destructive/80' 
+                : post.severity === 'medium' 
+                  ? 'bg-amber-500 hover:bg-amber-500/80'
+                  : 'bg-green-500 hover:bg-green-500/80'
+            }`}
+          >
+            {getSeverityIcon(post.severity)}
             {post.severity.toUpperCase()}
           </Badge>
         </div>
 
-        <h3 className="text-lg font-semibold mb-2">{post.title}</h3>
+        <h3 className={`${showFullContent ? 'text-xl' : 'text-lg'} font-semibold mb-2 ${!showFullContent && 'hover:text-primary cursor-pointer'}`} 
+          onClick={!showFullContent ? handleViewPost : undefined}>
+          {post.title}
+        </h3>
         
         {/* Show truncated or full description based on showFullContent */}
         <p className="text-muted-foreground mb-4">
-          {showFullContent ? post.description : truncateText(post.description || '', 150)}
+          {showFullContent ? post.description : truncateText(post.description || '', 180)}
+          {!showFullContent && post.description && post.description.length > 180 && (
+            <button 
+              onClick={handleViewPost}
+              className="text-primary hover:text-primary/80 ml-1 font-medium"
+            >
+              Read more
+            </button>
+          )}
         </p>
 
         {post.photo_url && (
@@ -264,13 +467,15 @@ const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardPro
             <img 
               src={post.photo_url} 
               alt="Road issue" 
-              className={`w-full object-cover rounded-lg ${showFullContent ? 'max-w-2xl h-96' : 'max-w-lg h-64'}`}
+              className={`w-full object-cover rounded-lg ${showFullContent ? 'max-h-96' : 'max-h-80'}`}
+              onClick={!showFullContent ? handleViewPost : undefined}
+              style={!showFullContent ? { cursor: 'pointer' } : {}}
             />
           </div>
         )}
 
         <div className="flex items-center text-sm text-muted-foreground mb-4">
-          <MapPin className="w-4 h-4 mr-1" />
+          <MapPin className="w-4 h-4 mr-1.5" />
           {post.city}, {post.state}
         </div>
 
@@ -280,10 +485,10 @@ const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardPro
               variant="ghost"
               size="sm"
               onClick={handleUpvote}
-              className={hasUpvoted ? 'text-primary' : ''}
+              className={hasUpvoted ? 'text-primary font-medium' : ''}
             >
-              <ThumbsUp className="w-4 h-4 mr-1" />
-              {upvoteCount}
+              <ThumbsUp className="w-4 h-4 mr-1.5" />
+              {upvoteCount > 0 ? `${upvoteCount} ${upvoteCount === 1 ? 'upvote' : 'upvotes'}` : 'Upvote'}
             </Button>
             
             <Button
@@ -291,8 +496,8 @@ const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardPro
               size="sm"
               onClick={toggleComments}
             >
-              <MessageSquare className="w-4 h-4 mr-1" />
-              {commentCount}
+              <MessageSquare className="w-4 h-4 mr-1.5" />
+              {commentCount > 0 ? `${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}` : 'Comment'}
             </Button>
 
             {/* Show View Post button only on card view, not on detail page */}
@@ -303,19 +508,24 @@ const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardPro
                 onClick={handleViewPost}
                 className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
               >
-                <Eye className="w-4 h-4 mr-1" />
-                View Post
+                <Eye className="w-4 h-4 mr-1.5" />
+                View Details
               </Button>
             )}
           </div>
           
           <Button variant="ghost" size="sm" onClick={handleReport}>
-            <Flag className="w-4 h-4" />
+            <Flag className="w-4 h-4 mr-1.5" />
+            Report
           </Button>
         </div>
 
         {showComments && (
-          <div className="mt-4 pt-4 border-t">
+          <div className="mt-6">
+            <Separator className="mb-4" />
+            
+            <h4 className="font-medium mb-3">Comments</h4>
+            
             {/* Existing Comments */}
             {loadingComments ? (
               <div className="text-center py-4">
@@ -323,12 +533,19 @@ const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardPro
                 <p className="text-sm text-muted-foreground mt-2">Loading comments...</p>
               </div>
             ) : (
-              <div className="space-y-4 mb-4">
+              <div className="space-y-4 mb-6">
                 {comments.length > 0 ? (
                   comments.map((comment) => (
-                    <div key={comment.id} className="bg-muted/50 rounded-lg p-3">
+                    <div key={comment.id} className="bg-muted/50 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-sm">{comment.author_name}</span>
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                              {comment.author_name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium text-sm">{comment.author_name}</span>
+                        </div>
                         <span className="text-xs text-muted-foreground">
                           {timeAgo(comment.created_at)}
                         </span>
@@ -337,33 +554,35 @@ const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardPro
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No comments yet. Be the first to comment!
-                  </p>
+                  <div className="text-sm text-muted-foreground text-center py-6 bg-muted/30 rounded-lg">
+                    <MessageSquare className="h-5 w-5 mx-auto mb-2 text-muted-foreground/70" />
+                    <p>No comments yet. Be the first to comment!</p>
+                  </div>
                 )}
               </div>
             )}
 
             {/* Add Comment Form */}
-            <div className="space-y-3">
+            <div className="space-y-3 bg-muted/20 p-4 rounded-lg">
+              <h4 className="font-medium text-sm">Add a comment</h4>
               <input
                 type="text"
                 placeholder="Your name"
                 value={commentAuthor}
                 onChange={(e) => setCommentAuthor(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
               <textarea
-                placeholder="Add a comment..."
+                placeholder="Share your thoughts..."
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="w-full px-3 py-2 bg-background border rounded-md resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 rows={3}
               />
               <Button 
                 onClick={handleComment} 
-                size="sm"
                 disabled={!newComment.trim() || !commentAuthor.trim()}
+                className="w-full"
               >
                 Add Comment
               </Button>

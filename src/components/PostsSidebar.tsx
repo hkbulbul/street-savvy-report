@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { MapPin, Filter } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MapPin, Filter, BarChart3, RefreshCcw, Map, AlertTriangle, Dot } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
+import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 
 interface Stats {
   totalPosts: number;
@@ -27,6 +32,8 @@ const PostsSidebar = ({ onFilterChange }: PostsSidebarProps) => {
   });
   const [severity, setSeverity] = useState<string>('all');
   const [location, setLocation] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchStats();
@@ -40,6 +47,7 @@ const PostsSidebar = ({ onFilterChange }: PostsSidebarProps) => {
   }, [severity, location, onFilterChange]);
 
   const fetchStats = async () => {
+    setLoading(true);
     try {
       // Get total posts
       const { count: totalPosts } = await supabase
@@ -79,93 +87,170 @@ const PostsSidebar = ({ onFilterChange }: PostsSidebarProps) => {
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const totalSeverityReports = stats.highPriority + stats.mediumPriority + stats.lowPriority;
 
   return (
     <div className="space-y-6">
       {/* Filters Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
+      <Card className="border shadow-sm hover:shadow-md transition-shadow">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center text-lg">
             <Filter className="w-5 h-5 mr-2" />
-            Filters
+            Filter Reports
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-0">
           <div>
-            <label className="text-sm font-medium mb-2 block">Severity Level</label>
+            <label className="text-sm font-medium mb-1.5 block text-muted-foreground">Severity Level</label>
             <Select value={severity} onValueChange={setSeverity}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-muted/30 border focus:ring-1 focus:ring-primary">
                 <SelectValue placeholder="All Severities" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="high" className="flex items-center">
+                  <div className="w-2 h-2 bg-destructive rounded-full mr-2"></div>
+                  High Priority
+                </SelectItem>
+                <SelectItem value="medium" className="flex items-center">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
+                  Medium Priority
+                </SelectItem>
+                <SelectItem value="low" className="flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                  Low Priority
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
           
           <div>
-            <label className="text-sm font-medium mb-2 block">Location Filter</label>
+            <label className="text-sm font-medium mb-1.5 block text-muted-foreground">Location</label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Enter city, state, or area..."
+                placeholder="City or state..."
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="pl-10"
+                className="pl-10 bg-muted/30 border focus:ring-1 focus:ring-primary"
               />
             </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-between">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-xs border-muted-foreground/30 hover:bg-muted/50"
+              onClick={() => {
+                setSeverity('all');
+                setLocation('');
+              }}
+            >
+              Clear All
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-xs flex items-center gap-1 text-primary border-primary hover:bg-primary/10"
+              onClick={fetchStats}
+            >
+              <RefreshCcw className="h-3 w-3" /> Refresh Stats
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Stats Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">📊 Community Stats</CardTitle>
+      {/* Community Card */}
+      <Card className="border shadow-sm hover:shadow-md transition-shadow">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center text-lg">
+            <BarChart3 className="w-5 h-5 mr-2" />
+            Community Stats
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{stats.totalPosts}</div>
-              <div className="text-sm text-muted-foreground">Total Posts</div>
+        <CardContent className="space-y-5 pt-0">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-muted/30 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-foreground">{stats.totalPosts}</div>
+              <div className="text-xs text-muted-foreground">Total Reports</div>
             </div>
-            <div className="text-center">
+            <div className="bg-primary/10 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-primary">{stats.thisWeek}</div>
-              <div className="text-sm text-muted-foreground">This Week</div>
+              <div className="text-xs text-muted-foreground">This Week</div>
             </div>
           </div>
           
+          {/* Severity Distribution */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-destructive rounded-full mr-2"></div>
-                <span className="text-sm">High Priority</span>
-              </div>
-              <span className="text-sm font-medium">{stats.highPriority}</span>
+              <h4 className="text-sm font-medium">Severity Distribution</h4>
+              <Badge variant="outline" className="text-xs font-normal px-1.5">
+                {totalSeverityReports} total
+              </Badge>
             </div>
             
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-warning rounded-full mr-2"></div>
-                <span className="text-sm">Medium Priority</span>
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-destructive rounded-full mr-2"></div>
+                    <span className="text-sm">High Priority</span>
+                  </div>
+                  <span className="text-sm font-medium">{stats.highPriority}</span>
+                </div>
+                <Progress 
+                  value={totalSeverityReports ? (stats.highPriority / totalSeverityReports) * 100 : 0} 
+                  className="h-1.5 bg-muted" 
+                />
               </div>
-              <span className="text-sm font-medium">{stats.mediumPriority}</span>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-success rounded-full mr-2"></div>
-                <span className="text-sm">Low Priority</span>
+              
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-amber-500 rounded-full mr-2"></div>
+                    <span className="text-sm">Medium Priority</span>
+                  </div>
+                  <span className="text-sm font-medium">{stats.mediumPriority}</span>
+                </div>
+                <Progress 
+                  value={totalSeverityReports ? (stats.mediumPriority / totalSeverityReports) * 100 : 0} 
+                  className="h-1.5 bg-muted" 
+                />
               </div>
-              <span className="text-sm font-medium">{stats.lowPriority}</span>
+              
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-sm">Low Priority</span>
+                  </div>
+                  <span className="text-sm font-medium">{stats.lowPriority}</span>
+                </div>
+                <Progress 
+                  value={totalSeverityReports ? (stats.lowPriority / totalSeverityReports) * 100 : 0} 
+                  className="h-1.5 bg-muted" 
+                />
+              </div>
             </div>
           </div>
         </CardContent>
+        <CardFooter className="border-t bg-muted/10 pt-3 pb-3">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full text-primary border-primary hover:bg-primary/10"
+            onClick={() => navigate('/create-post')}
+          >
+            <AlertTriangle className="h-3.5 w-3.5 mr-2" />
+            Report New Issue
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );
