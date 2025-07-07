@@ -2,41 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* ShittyRoads Design System - Modern road reporting platform
+All colors MUST be HSL for proper theming */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 98%;
+    --foreground: 220 13% 13%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 13% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 13% 13%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Orange-red theme for urgency and attention */
+    --primary: 14 100% 57%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 14 100% 52%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 220 13% 95%;
+    --secondary-foreground: 220 13% 13%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 13% 95%;
+    --muted-foreground: 220 13% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 14 100% 95%;
+    --accent-foreground: 14 100% 57%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Red for high severity issues */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Warning colors for medium severity */
+    --warning: 43 100% 50%;
+    --warning-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    /* Success for resolved issues */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 14 100% 57%;
+
+    --radius: 0.75rem;
+
+    /* Custom gradients for visual appeal */
+    --gradient-primary: linear-gradient(135deg, hsl(14 100% 57%), hsl(0 84% 60%));
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)), hsl(220 13% 95%));
+    
+    /* Shadows for depth */
+    --shadow-elegant: 0 4px 20px -2px hsl(14 100% 57% / 0.1);
+    --shadow-card: 0 2px 10px -2px hsl(220 13% 13% / 0.1);
+    
+    /* Animation variables */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
 
