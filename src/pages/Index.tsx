@@ -39,11 +39,7 @@ const Index = () => {
     try {
       let query = supabase
         .from('posts')
-        .select(`
-          *,
-          post_upvotes(count),
-          post_comments(count)
-        `);
+        .select('*');
 
       // Apply filters
       if (filters.severity) {
@@ -62,30 +58,64 @@ const Index = () => {
 
       if (error) throw error;
 
+      if (!postsData) {
+        setPosts([]);
+        return;
+      }
+
+      // Get upvote counts for all posts
+      const { data: upvoteCounts } = await supabase
+        .from('post_upvotes')
+        .select('post_id')
+        .in('post_id', postsData.map(p => p.id));
+
+      // Get comment counts for all posts
+      const { data: commentCounts } = await supabase
+        .from('post_comments')
+        .select('post_id')
+        .in('post_id', postsData.map(p => p.id));
+
       // Get user's upvotes
       const userSession = getUserSession();
       const { data: userUpvotes } = await supabase
         .from('post_upvotes')
         .select('post_id')
-        .eq('user_session', userSession);
+        .eq('user_session', userSession)
+        .in('post_id', postsData.map(p => p.id));
 
+      // Create count maps
+      const upvoteCountMap = new Map<string, number>();
+      const commentCountMap = new Map<string, number>();
       const upvotedPostIds = new Set(userUpvotes?.map(u => u.post_id) || []);
 
+      // Count upvotes per post
+      upvoteCounts?.forEach(upvote => {
+        const count = upvoteCountMap.get(upvote.post_id) || 0;
+        upvoteCountMap.set(upvote.post_id, count + 1);
+      });
+
+      // Count comments per post
+      commentCounts?.forEach(comment => {
+        const count = commentCountMap.get(comment.post_id) || 0;
+        commentCountMap.set(comment.post_id, count + 1);
+      });
+
       // Process posts with counts and user upvote status
-      const processedPosts: Post[] = postsData?.map(post => ({
+      const processedPosts: Post[] = postsData.map(post => ({
         ...post,
-        upvote_count: post.post_upvotes?.[0]?.count || 0,
-        comment_count: post.post_comments?.[0]?.count || 0,
+        upvote_count: upvoteCountMap.get(post.id) || 0,
+        comment_count: commentCountMap.get(post.id) || 0,
         user_upvoted: upvotedPostIds.has(post.id)
-      })) || [];
+      }));
 
       setPosts(processedPosts);
     } catch (error) {
       console.error('Error fetching posts:', error);
+      setPosts([]);
     } finally {
       setLoading(false);
     }
-  }, [filters, searchQuery]);
+  }, [filters.severity, filters.location, searchQuery]);
 
   useEffect(() => {
     fetchPosts();
@@ -98,6 +128,11 @@ const Index = () => {
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
   }, []);
+
+  const handleUpvoteChange = useCallback(() => {
+    // Refetch posts when upvote changes
+    fetchPosts();
+  }, [fetchPosts]);
 
   if (loading) {
     return (
@@ -153,7 +188,7 @@ const Index = () => {
                   <PostCard 
                     key={post.id} 
                     post={post} 
-                    onUpvoteChange={fetchPosts}
+                    onUpvoteChange={handleUpvoteChange}
                   />
                 ))}
               </div>
