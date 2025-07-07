@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { ThumbsUp, MessageSquare, Flag, MapPin } from 'lucide-react';
+import { ThumbsUp, MessageSquare, Flag, MapPin, Eye } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface Post {
   id: string;
@@ -31,9 +32,10 @@ interface Comment {
 interface PostCardProps {
   post: Post;
   onUpvoteChange?: () => void;
+  showFullContent?: boolean;
 }
 
-const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
+const PostCard = ({ post, onUpvoteChange, showFullContent = false }: PostCardProps) => {
   const [upvoteCount, setUpvoteCount] = useState(post.upvote_count || 0);
   const [commentCount, setCommentCount] = useState(post.comment_count || 0);
   const [hasUpvoted, setHasUpvoted] = useState(post.user_upvoted || false);
@@ -43,6 +45,7 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
   const [commentAuthor, setCommentAuthor] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const getUserSession = () => {
     let session = localStorage.getItem('user_session');
@@ -59,6 +62,13 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
       fetchComments();
     }
   }, [showComments]);
+
+  // Auto-show comments on detail page
+  useEffect(() => {
+    if (showFullContent) {
+      setShowComments(true);
+    }
+  }, [showFullContent]);
 
   const fetchComments = async () => {
     setLoadingComments(true);
@@ -106,9 +116,6 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
         setUpvoteCount(prev => prev + 1);
         setHasUpvoted(true);
       }
-      
-      // Don't call onUpvoteChange to avoid page refresh
-      // onUpvoteChange?.();
     } catch (error) {
       toast({
         title: "Error",
@@ -191,6 +198,10 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
     }
   };
 
+  const handleViewPost = () => {
+    navigate(`/post/${post.id}`);
+  };
+
   const toggleComments = () => {
     setShowComments(!showComments);
   };
@@ -212,6 +223,11 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
       case 'low': return 'secondary';
       default: return 'default';
     }
+  };
+
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
 
   return (
@@ -237,14 +253,18 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
         </div>
 
         <h3 className="text-lg font-semibold mb-2">{post.title}</h3>
-        <p className="text-muted-foreground mb-4">{post.description}</p>
+        
+        {/* Show truncated or full description based on showFullContent */}
+        <p className="text-muted-foreground mb-4">
+          {showFullContent ? post.description : truncateText(post.description || '', 150)}
+        </p>
 
         {post.photo_url && (
           <div className="mb-4">
             <img 
               src={post.photo_url} 
               alt="Road issue" 
-              className="w-full max-w-lg h-64 object-cover rounded-lg"
+              className={`w-full object-cover rounded-lg ${showFullContent ? 'max-w-2xl h-96' : 'max-w-lg h-64'}`}
             />
           </div>
         )}
@@ -274,6 +294,19 @@ const PostCard = ({ post, onUpvoteChange }: PostCardProps) => {
               <MessageSquare className="w-4 h-4 mr-1" />
               {commentCount}
             </Button>
+
+            {/* Show View Post button only on card view, not on detail page */}
+            {!showFullContent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleViewPost}
+                className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+              >
+                <Eye className="w-4 h-4 mr-1" />
+                View Post
+              </Button>
+            )}
           </div>
           
           <Button variant="ghost" size="sm" onClick={handleReport}>
