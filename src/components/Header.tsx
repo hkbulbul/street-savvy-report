@@ -2,7 +2,11 @@ import { Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const Header = () => {
+interface HeaderProps {
+  onSearch?: (query: string) => void;
+}
+
+const Header = ({ onSearch }: HeaderProps) => {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
       <div className="container flex h-16 items-center px-4">
@@ -24,17 +28,21 @@ const Header = () => {
             <Input
               placeholder="Search posts..."
               className="pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
+              onChange={(e) => onSearch?.(e.target.value)}
             />
           </div>
         </div>
 
         {/* Post Issue Button */}
         <Button 
+          asChild
           variant="default" 
           className="bg-primary hover:bg-primary-hover text-primary-foreground shadow-lg"
         >
-          <Plus className="mr-2 h-4 w-4" />
-          Post Issue
+          <a href="/create-post">
+            <Plus className="mr-2 h-4 w-4" />
+            Post Issue
+          </a>
         </Button>
       </div>
     </header>

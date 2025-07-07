@@ -1,71 +1,163 @@
+import { useState, useEffect, useCallback } from 'react';
 import Header from "@/components/Header";
+import PostCard from "@/components/PostCard";
+import PostsSidebar from "@/components/PostsSidebar";
+import { supabase } from '@/integrations/supabase/client';
+
+interface Post {
+  id: string;
+  title: string;
+  description: string;
+  name: string;
+  severity: string;
+  city: string;
+  state: string;
+  photo_url: string | null;
+  created_at: string;
+  upvote_count?: number;
+  comment_count?: number;
+  user_upvoted?: boolean;
+}
 
 const Index = () => {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/10">
-      <Header />
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<{ severity?: string; location?: string }>({});
+
+  const getUserSession = () => {
+    let session = localStorage.getItem('user_session');
+    if (!session) {
+      session = 'user_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('user_session', session);
+    }
+    return session;
+  };
+
+  const fetchPosts = useCallback(async () => {
+    setLoading(true);
+    try {
+      let query = supabase
+        .from('posts')
+        .select(`
+          *,
+          post_upvotes(count),
+          post_comments(count)
+        `);
+
+      // Apply filters
+      if (filters.severity) {
+        query = query.eq('severity', filters.severity);
+      }
       
-      {/* Hero Section */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center max-w-3xl mx-auto">
-          <div className="mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4 shadow-lg">
-              <div className="w-8 h-8 rounded-full bg-primary-foreground"></div>
+      if (filters.location) {
+        query = query.or(`city.ilike.%${filters.location}%,state.ilike.%${filters.location}%`);
+      }
+
+      if (searchQuery) {
+        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+      }
+
+      const { data: postsData, error } = await query.order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Get user's upvotes
+      const userSession = getUserSession();
+      const { data: userUpvotes } = await supabase
+        .from('post_upvotes')
+        .select('post_id')
+        .eq('user_session', userSession);
+
+      const upvotedPostIds = new Set(userUpvotes?.map(u => u.post_id) || []);
+
+      // Process posts with counts and user upvote status
+      const processedPosts: Post[] = postsData?.map(post => ({
+        ...post,
+        upvote_count: post.post_upvotes?.[0]?.count || 0,
+        comment_count: post.post_comments?.[0]?.count || 0,
+        user_upvoted: upvotedPostIds.has(post.id)
+      })) || [];
+
+      setPosts(processedPosts);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, searchQuery]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  const handleFilterChange = useCallback((newFilters: { severity?: string; location?: string }) => {
+    setFilters(newFilters);
+  }, []);
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header onSearch={handleSearch} />
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p>Loading posts...</p>
             </div>
-            <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-4">
-              Report <span className="text-primary">Road Issues</span>
-            </h1>
-            <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
-              Help improve your community by reporting poorly maintained roads. 
-              Together, we can make our streets safer for everyone.
-            </p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a 
-              href="/create-post"
-              className="inline-flex items-center justify-center h-12 px-8 bg-primary hover:bg-primary-hover text-primary-foreground rounded-lg font-medium transition-colors shadow-lg"
-            >
-              Report an Issue
-            </a>
-            <button className="inline-flex items-center justify-center h-12 px-8 border border-border bg-card hover:bg-muted/50 text-foreground rounded-lg font-medium transition-colors">
-              Browse Reports
-            </button>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Features Grid */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="text-center p-6">
-            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <div className="w-6 h-6 bg-primary rounded"></div>
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Easy Reporting</h3>
-            <p className="text-muted-foreground">
-              Simple form to report road issues with photos and location details
-            </p>
+  return (
+    <div className="min-h-screen bg-background">
+      <Header onSearch={handleSearch} />
+      
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <PostsSidebar onFilterChange={handleFilterChange} />
           </div>
           
-          <div className="text-center p-6">
-            <div className="w-12 h-12 bg-warning/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <div className="w-6 h-6 bg-warning rounded"></div>
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Location Tracking</h3>
-            <p className="text-muted-foreground">
-              Automatic location detection or manual coordinate input
-            </p>
-          </div>
-          
-          <div className="text-center p-6">
-            <div className="w-12 h-12 bg-success/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-              <div className="w-6 h-6 bg-success rounded"></div>
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Community Impact</h3>
-            <p className="text-muted-foreground">
-              Help local authorities prioritize road maintenance and repairs
-            </p>
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            {posts.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-8 h-8 bg-muted-foreground/20 rounded"></div>
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No posts found</h3>
+                <p className="text-muted-foreground mb-4">
+                  {searchQuery || Object.keys(filters).length > 0
+                    ? "Try adjusting your search or filters"
+                    : "Be the first to report a road issue!"
+                  }
+                </p>
+                <a 
+                  href="/create-post"
+                  className="inline-flex items-center justify-center h-10 px-6 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg font-medium transition-colors"
+                >
+                  Report First Issue
+                </a>
+              </div>
+            ) : (
+              <div>
+                {posts.map((post) => (
+                  <PostCard 
+                    key={post.id} 
+                    post={post} 
+                    onUpvoteChange={fetchPosts}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
